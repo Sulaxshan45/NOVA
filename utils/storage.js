@@ -87,7 +87,16 @@ export function importAllData(data) {
 }
 
 export async function loadWorkspaceFromServer() {
-  // No-op for GitHub Pages — data lives in localStorage
+  try {
+    const res = await fetch('/api/sync/load');
+    if (res.ok) {
+      const data = await res.json();
+      importAllData(data);
+      return true;
+    }
+  } catch (err) {
+    console.error('Failed to load workspace from server:', err);
+  }
   return false;
 }
 

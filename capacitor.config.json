@@ -1,0 +1,10 @@
+{
+  "appId": "com.nova.pmpro",
+  "appName": "NOVA",
+  "webDir": "dist-apk",
+  "server": {
+    "hostname": "nova-pm-c2b4f.firebaseapp.com",
+    "androidScheme": "https"
+  },
+  "overrideUserAgent": "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
+}

@@ -947,11 +947,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-login-google')?.addEventListener('click', async () => {
     try {
       showToast('Opening Google Sign-In...', 'info');
-      // Using popup instead of redirect to avoid the 404 /__/firebase/init.json error on unconfigured auth domains
-      const result = await signInWithPopup(auth, googleProvider);
-      if (result && result.user) {
-        handleFirebaseAuth(result.user);
-      }
+      // Use redirect now that Capacitor hostname matches Firebase authDomain
+      await signInWithRedirect(auth, googleProvider);
     } catch (error) {
       if (error.code !== 'auth/popup-closed-by-user') {
         showToast('Login failed: ' + error.message, 'error');
@@ -990,6 +987,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const appSh = document.getElementById('app-shell');
       if (loginScr) loginScr.style.display = 'none';
       if (appSh) appSh.style.display = 'flex';
+      await loadWorkspaceFromServer();
       initProjects();
       const project = getActiveProject();
       updateNavVisibility();

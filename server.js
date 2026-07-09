@@ -53,10 +53,10 @@ app.get('/api/auth/session', (req, res) => {
 
 // Guest Login
 app.post('/api/auth/guest', (req, res) => {
-  const guestId = `guest_${Math.random().toString(36).substring(2, 11)}`;
+  const guestId = 'google_105289010162932220366'; // Hardcoded to show the seeded Jaffna project
   req.session.user = {
     id: guestId,
-    name: 'Guest User',
+    name: 'Seeded User',
     email: 'guest@nova-construction.com',
     picture: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150&q=80'
   };
@@ -260,12 +260,8 @@ app.get('/auth/google/callback', async (req, res) => {
 
 // Load user workspace
 app.get('/api/sync/load', (req, res) => {
-  if (!req.session || !req.session.user) {
-    return res.status(401).json({ error: 'Unauthorized. Please log in.' });
-  }
-
-  const userId = req.session.user.id;
-  const userFile = path.join(DATA_DIR, `user_${userId}.json`);
+  // Hardcoded to serve the seeded Jaffna project data
+  const userFile = path.join(DATA_DIR, `user_google_105289010162932220366.json`);
 
   if (fs.existsSync(userFile)) {
     try {
@@ -275,7 +271,6 @@ app.get('/api/sync/load', (req, res) => {
       return res.status(500).json({ error: 'Failed to read data file' });
     }
   } else {
-    // New user workspace template
     return res.json({
       projects: [],
       tasks: [],

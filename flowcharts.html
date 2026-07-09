@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Flowcharts</title>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true });
+  </script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: white; }
+    .mermaid { margin-bottom: 40px; }
+  </style>
+</head>
+<body>
+  <h2>App Workflow</h2>
+  <div class="mermaid" id="app-workflow">
+graph TD
+    A[User Login / Auth] --> B{Role Check}
+    B -- Project Manager --> C[Project Dashboard]
+    B -- Site Engineer --> D[Mobile Field App]
+    B -- Subcontractor --> E[Task View]
+    
+    C --> F[Intelligent Scheduling Gantt]
+    C --> G[Sustainability Dashboard]
+    C --> H[Document & RFI Management]
+    
+    F --> I[AI Risk Predictor]
+    G --> J[Dynamic Carbon Calculator]
+    
+    D --> K[Log Daily Activities]
+    D --> L[Material Intake Scanning]
+    
+    K --> I
+    L --> J
+    
+    I --> M[Alerts & Recommendations]
+    J --> M
+    
+    M --> N[Updated Project Baseline]
+  </div>
+  
+  <h2>Coding Workflow</h2>
+  <div class="mermaid" id="coding-workflow">
+graph TD
+    A[Frontend: UI/UX Client] --> B[API Gateway]
+    B --> C{Microservices Backend}
+    C --> D[Auth Service]
+    C --> E[Project Management Service]
+    C --> F[AI & Analytics Engine]
+    C --> G[Sustainability Data Service]
+    
+    F --> H[(ML Models / PyTorch)]
+    F --> I[(LLM Service / NLP)]
+    
+    E --> J[(PostgreSQL: Structured Data)]
+    G --> K[(MongoDB: Unstructured/IoT Data)]
+    
+    L[GitHub / CI/CD] --> M[Netlify Hosting]
+    M --> A
+  </div>
+</body>
+</html>

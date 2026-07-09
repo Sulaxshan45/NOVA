@@ -1,0 +1,16 @@
+graph TD
+    A[Frontend: UI/UX Client] --> B[API Gateway]
+    B --> C{Microservices Backend}
+    C --> D[Auth Service]
+    C --> E[Project Management Service]
+    C --> F[AI & Analytics Engine]
+    C --> G[Sustainability Data Service]
+    
+    F --> H[(ML Models / PyTorch)]
+    F --> I[(LLM Service / NLP)]
+    
+    E --> J[(PostgreSQL: Structured Data)]
+    G --> K[(MongoDB: Unstructured/IoT Data)]
+    
+    L[GitHub / CI/CD] --> M[Netlify Hosting]
+    M --> A
