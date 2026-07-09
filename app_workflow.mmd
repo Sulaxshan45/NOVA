@@ -1,0 +1,23 @@
+graph TD
+    A[User Login / Auth] --> B{Role Check}
+    B -- Project Manager --> C[Project Dashboard]
+    B -- Site Engineer --> D[Mobile Field App]
+    B -- Subcontractor --> E[Task View]
+    
+    C --> F[Intelligent Scheduling Gantt]
+    C --> G[Sustainability Dashboard]
+    C --> H[Document & RFI Management]
+    
+    F --> I[AI Risk Predictor]
+    G --> J[Dynamic Carbon Calculator]
+    
+    D --> K[Log Daily Activities]
+    D --> L[Material Intake Scanning]
+    
+    K --> I
+    L --> J
+    
+    I --> M[Alerts & Recommendations]
+    J --> M
+    
+    M --> N[Updated Project Baseline]

@@ -9,7 +9,7 @@ import { renderGantt } from './modules/gantt.js';
 import { renderBilling } from './modules/billing.js';
 import { renderDashboard } from './modules/dashboard.js';
 import { renderExpenses } from './modules/expenses.js';
-import { renderChat } from './modules/chat.js';
+import { renderChat } from './modules/chat.js?v=2';
 import { getSettings, saveSettings, getProjects, saveProjects, getTasks, saveTasks, getMaterials, saveMaterials, exportAllData, importAllData, loadWorkspaceFromServer, clearLocalSessionCache } from './utils/storage.js';
 import { formatDate } from './utils/helpers.js';
 import { openModal, closeModal, showToast, showConfirm } from './utils/ui.js';
@@ -18,8 +18,8 @@ export { openModal, closeModal, showToast, showConfirm };
 // ============================================================
 // FIREBASE AUTHENTICATION
 // ============================================================
-import { auth, googleProvider, signInWithRedirect, getRedirectResult, deleteUser, signOut, db } from './utils/firebase.js';
-import { collection, query, where, getDocs, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { auth, googleProvider, signInWithPopup, getRedirectResult, deleteUser, signOut, db } from './utils/firebase.js';
+import { collection, query, where, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 // ============================================================
 // AUTH STATE & SESSION (localStorage-based — no server needed)
 // ============================================================
@@ -55,12 +55,23 @@ function updateSidebarUser() {
   const nameEl = document.getElementById('topbar-username');
   const emailEl = document.getElementById('topbar-email');
   const companyEl = document.getElementById('topbar-company');
+  const novdEl = document.getElementById('topbar-novdid');
 
   if (currentUser && topbarUser) {
     topbarUser.style.display = 'flex';
     if (avatarEl) avatarEl.src = currentUser.picture || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&h=150&q=80';
     if (nameEl) nameEl.textContent = currentUser.name || 'User';
     if (emailEl) emailEl.textContent = currentUser.email || '';
+    
+    if (novdEl) {
+      if (currentUser.novdId) {
+        novdEl.textContent = `NOVD ID: ${currentUser.novdId}`;
+        novdEl.style.display = 'inline-block';
+      } else {
+        novdEl.style.display = 'none';
+      }
+    }
+
     if (companyEl) {
       const parts = [];
       if (currentUser.designation) parts.push(currentUser.designation);
@@ -257,16 +268,7 @@ function renderSettings() {
         </div>
       </div>
 
-      <!-- App Info -->
-      <div class="glass-card">
-        <h3 class="card-title">ℹ️ App Info</h3>
-        <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
-          <div class="info-row"><span>Version</span><span>1.0.0</span></div>
-          <div class="info-row"><span>Projects</span><span>${getProjects().length}</span></div>
-          <div class="info-row"><span>Storage</span><span>localStorage</span></div>
-          <div class="info-row"><span>Built with</span><span>Vanilla JS</span></div>
-        </div>
-      </div>
+
     </div>
   `;
 
@@ -697,14 +699,25 @@ function showProfileSetup(prefillName, prefillEmail, prefillPicture, onComplete)
           return;
         }
 
+        // Generate unique NOVD ID
+        let novdId = '';
+        let isUnique = false;
+        while (!isUnique) {
+            novdId = Math.floor(10000 + Math.random() * 90000).toString();
+            const idQuery = query(collection(db, 'users'), where('novdId', '==', novdId));
+            const idQs = await getDocs(idQuery);
+            if (idQs.empty) isUnique = true;
+        }
+
         closeModal();
-        onComplete(name, username, designation, company, uploadedPictureBase64);
+        onComplete(name, username, designation, company, uploadedPictureBase64, novdId);
       } catch (err) {
         console.warn('Firestore check error (proceeding anyway):', err);
         // If Firestore is unavailable/not enabled, skip the uniqueness check
         // and allow the user to log in — Firestore will be checked once enabled
+        let novdId = Math.floor(10000 + Math.random() * 90000).toString();
         closeModal();
-        onComplete(name, username, designation, company, uploadedPictureBase64);
+        onComplete(name, username, designation, company, uploadedPictureBase64, novdId);
       }
     };
 
@@ -738,8 +751,31 @@ function setupSidebar() {
 // ============================================================
 let _googleInited = false;
 
-function handleFirebaseAuth(firebaseUser) {
+async function handleFirebaseAuth(firebaseUser) {
   try {
+    const userId = `google_${firebaseUser.uid}`;
+    
+    // Check if user already exists in Firestore
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    
+    if (userSnap.exists()) {
+      const user = userSnap.data();
+      if (!user.companies) user.companies = [user.company];
+      localStorage.setItem('nova_session_user', JSON.stringify(user));
+      currentUser = user;
+      showToast(`Welcome back, ${user.name} ✓`, 'success');
+      updateSidebarUser();
+      const loginScr = document.getElementById('login-screen');
+      const appSh = document.getElementById('app-shell');
+      if (loginScr) loginScr.style.display = 'none';
+      if (appSh) appSh.style.display = 'flex';
+      initProjects();
+      updateNavVisibility();
+      window.navigateTo(getActiveProject() ? 'dashboard' : 'projects');
+      return;
+    }
+
     const profile = {
       name: firebaseUser.displayName || 'Google User',
       email: firebaseUser.email,
@@ -748,13 +784,15 @@ function handleFirebaseAuth(firebaseUser) {
     };
 
     closeModal();
-    showProfileSetup(profile.name, profile.email, profile.picture, async (name, username, designation, company, picture) => {
+    showProfileSetup(profile.name, profile.email, profile.picture, async (name, username, designation, company, picture, novdId) => {
       const user = {
-        id: `google_${profile.sub}`,
+        id: userId,
+        novdId: novdId,
         name: name,
         username: username,
         designation: designation,
         company: company,
+        companies: [company],
         email: profile.email,
         picture: picture,
         firebaseUid: firebaseUser.uid
@@ -792,17 +830,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   const isLoggedIn = checkAuthSession();
 
   // Handle Google redirect result (after signInWithRedirect returns)
-  try {
-    const result = await getRedirectResult(auth);
+  getRedirectResult(auth).then(result => {
     if (result && result.user) {
       handleFirebaseAuth(result.user);
     }
-  } catch (err) {
+  }).catch(err => {
     console.warn('Redirect result error:', err.message);
-  }
+  });
 
   // If already logged in (session restored), initialize app state
   if (isLoggedIn) {
+    // Refresh user from Firestore to catch company/invite updates
+    try {
+      if (currentUser && currentUser.id) {
+        const userRef = doc(db, 'users', currentUser.id);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          currentUser = userSnap.data();
+          if (!currentUser.companies) currentUser.companies = [currentUser.company];
+          localStorage.setItem('nova_session_user', JSON.stringify(currentUser));
+          updateSidebarUser();
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to refresh user data from Firestore:", err);
+    }
     initProjects();
     updateNavVisibility();
     window.navigateTo(getActiveProject() ? 'dashboard' : 'projects');
@@ -848,19 +900,34 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   setupSidebar();
   setupThemeToggle();
-  // Profile Dropdown Toggle
+  // Profile Dropdown — move to body to escape topbar stacking context (backdrop-filter creates one)
   const userBtn = document.getElementById('topbar-user-btn');
   const userDropdown = document.getElementById('user-dropdown');
 
-  // bulletproof profile dropdown — use direct style, bypass CSS class system
   if (userBtn && userDropdown) {
-    // Start hidden
+    // Move dropdown to body so it's NOT clipped by topbar's stacking context
+    document.body.appendChild(userDropdown);
+
+    // Style as fixed so it doesn't depend on parent context
+    userDropdown.style.position = 'fixed';
+    userDropdown.style.zIndex = '99999';
     userDropdown.style.display = 'none';
+
+    function positionDropdown() {
+      const rect = userBtn.getBoundingClientRect();
+      userDropdown.style.top = (rect.bottom + 8) + 'px';
+      userDropdown.style.left = '';
+      userDropdown.style.right = (window.innerWidth - rect.right) + 'px';
+    }
 
     userBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const isOpen = userDropdown.style.display === 'block';
-      userDropdown.style.display = isOpen ? 'none' : 'block';
+      if (userDropdown.style.display === 'block') {
+        userDropdown.style.display = 'none';
+      } else {
+        positionDropdown();
+        userDropdown.style.display = 'block';
+      }
     });
 
     document.addEventListener('click', (e) => {
@@ -868,60 +935,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         userDropdown.style.display = 'none';
       }
     });
+
+    window.addEventListener('resize', () => {
+      if (userDropdown.style.display === 'block') positionDropdown();
+    });
   }
 
-  // Logout
-  document.getElementById('btn-logout')?.addEventListener('click', async () => {
-    try {
-      if (auth.currentUser) await signOut(auth);
-    } catch(e) {}
-    localStorage.removeItem('nova_session_user');
-    currentUser = null;
-    document.getElementById('app-shell').style.display = 'none';
-    document.getElementById('login-screen').style.display = 'flex';
-    document.getElementById('user-dropdown')?.classList.remove('user-dropdown--active');
-  });
+  // NOTE: Logout and Delete Account handlers are defined below (lines ~1046+)
 
-  // Delete Account
-  document.getElementById('btn-delete-account')?.addEventListener('click', () => {
-    showConfirm('Delete Account', 'Are you sure you want to delete your account? This cannot be undone.', async (confirmed) => {
-      if (!confirmed) return;
-      try {
-        if (auth.currentUser) {
-           await deleteUser(auth.currentUser);
-        }
-        localStorage.removeItem('nova_session_user');
-        currentUser = null;
-        document.getElementById('app-shell').style.display = 'none';
-        document.getElementById('login-screen').style.display = 'flex';
-        document.getElementById('user-dropdown')?.classList.remove('user-dropdown--active');
-        showToast('Account deleted successfully', 'success');
-      } catch (err) {
-        showToast('Error deleting account: ' + err.message, 'error');
-      }
-    });
-  });
-
-  // Firebase Google Sign-In (use redirect — popup is blocked by GitHub Pages COOP headers)
+  // Firebase Google Sign-In
   document.getElementById('btn-login-google')?.addEventListener('click', async () => {
     try {
-      showToast('Redirecting to Google...', 'info');
+      showToast('Opening Google Sign-In...', 'info');
+      // Use redirect now that Capacitor hostname matches Firebase authDomain
       await signInWithRedirect(auth, googleProvider);
     } catch (error) {
-      showToast('Login failed: ' + error.message, 'error');
+      if (error.code !== 'auth/popup-closed-by-user') {
+        showToast('Login failed: ' + error.message, 'error');
+      }
     }
   });
 
   // Guest Sign In Button
   document.getElementById('btn-login-guest')?.addEventListener('click', () => {
-    showProfileSetup('', '', '', async (name, username, designation, company, picture) => {
+    showProfileSetup('', '', '', async (name, username, designation, company, picture, novdId) => {
       const guestId = `guest_${Math.random().toString(36).substring(2, 11)}`;
       const user = {
         id: guestId,
+        novdId: novdId,
         name: name,
         username: username,
         designation: designation,
         company: company,
+        companies: [company],
         email: 'guest@nova-construction.com',
         picture: picture || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150&q=80'
       };
@@ -941,6 +987,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const appSh = document.getElementById('app-shell');
       if (loginScr) loginScr.style.display = 'none';
       if (appSh) appSh.style.display = 'flex';
+      await loadWorkspaceFromServer();
       initProjects();
       const project = getActiveProject();
       updateNavVisibility();
@@ -1048,3 +1095,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.navigateTo(project ? 'dashboard' : 'projects');
   }
 });
+
+// ============================================================
+// PDF PRINTING HELPER
+// ============================================================
+window.preparePrint = function(docTitle) {
+  const settings = getSettings();
+  const companyName = settings.companyName || 'NOVA Construction';
+  const activeProjectId = getActiveProjectId();
+  const projects = getProjects();
+  const project = projects.find(p => p.id === activeProjectId);
+  const projectName = project ? project.name : 'Global View';
+
+  const titleEl = document.getElementById('print-document-title');
+  const compEl = document.getElementById('print-company-name');
+  const projEl = document.getElementById('print-project-name');
+
+  if(compEl) compEl.textContent = companyName;
+  if(projEl) projEl.textContent = projectName;
+  if(titleEl) titleEl.textContent = docTitle;
+
+  window.print();
+};
